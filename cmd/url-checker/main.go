@@ -14,12 +14,22 @@ func run(args []string) error {
 	}
 	results := checker.CheckMultipleURLs(args)
 
-	for _,result := range results{
+	for _, result := range results {
+		if result.Err != nil {
+			fmt.Printf(
+				"%s error: %v\n",
+				result.URL,
+				result.StatusCode,
+			)
+			continue
+
+		}
 		fmt.Printf(
-			"%s %d\n",
+			"%s  %d\n",
 			result.URL,
 			result.StatusCode,
 		)
+
 	}
 	return nil
 }

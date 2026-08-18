@@ -83,3 +83,22 @@ func TestRunChecksURLs(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 }
+
+func TestRunReportsURLCheckError(t *testing.T){
+	output := captureOutput(func ()  {
+		err := run([]string{"http://127.0.0.1:59999"})
+
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		
+	})
+
+	if !strings.Contains(output, "error"){
+		t.Fatalf(
+			"expected output to contain %q, got %q",
+			"error",
+			output,
+		)
+	}
+}
