@@ -2,6 +2,7 @@ package checker
 
 import (
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -46,12 +47,22 @@ func CheckURLWithTimeout(url string, timeout time.Duration) CheckResult {
 
 }
 
-func CheckMultipleURLs(urls []string)[]CheckResult{
-	results := make([]CheckResult, 0, len(urls))
+func CheckMultipleURLs(urls []string) []CheckResult {
+	results := make([]CheckResult, len(urls))
 
-	for _,url := range urls{
-		results = append(results,CheckURL(url))
+	var wg sync.WaitGroup
+
+	wg.Add(len(urls))
+
+	for i, url := range urls {
+		go func(i int, url string) {
+			defer wg.Done()
+			results[i] = CheckURL(url)
+
+		}(i, url)
+
 	}
+	wg.Wait()
 
 	return results
 

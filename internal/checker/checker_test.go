@@ -195,3 +195,43 @@ func TestCheckMultipleURLs(t *testing.T) {
 	}
 
 }
+
+func TestCheckMultipleURLsRunsConcurrently(t *testing.T) {
+
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(100 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
+
+	defer server.Close()
+
+	urls := []string{
+		server.URL,
+		server.URL,
+		server.URL,
+	}
+
+	start := time.Now()
+
+	results := CheckMultipleURLs(urls)
+
+	duration := time.Since(start)
+
+	if len(results) != len(urls) {
+		t.Fatalf(
+			"expected %d results, got %d",
+			len(urls),
+			len(results),
+		)
+	}
+
+	if duration >= 250*time.Millisecond {
+		t.Fatalf(
+			"expected concurrent checks to finish in less than 250ms,took %v",
+			duration,
+		)
+	}
+
+}
