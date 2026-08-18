@@ -45,3 +45,14 @@ func CheckURLWithTimeout(url string, timeout time.Duration) CheckResult {
 	}
 
 }
+
+func CheckMultipleURLs(urls []string)[]CheckResult{
+	results := make([]CheckResult, 0, len(urls))
+
+	for _,url := range urls{
+		results = append(results,CheckURL(url))
+	}
+
+	return results
+
+}
