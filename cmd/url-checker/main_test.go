@@ -84,20 +84,45 @@ func TestRunChecksURLs(t *testing.T) {
 	}
 }
 
-func TestRunReportsURLCheckError(t *testing.T){
-	output := captureOutput(func ()  {
+func TestRunReportsURLCheckError(t *testing.T) {
+	output := captureOutput(func() {
 		err := run([]string{"http://127.0.0.1:59999"})
 
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
-		
+
 	})
 
-	if !strings.Contains(output, "error"){
+	if !strings.Contains(output, "error") {
 		t.Fatalf(
 			"expected output to contain %q, got %q",
 			"error",
+			output,
+		)
+	}
+}
+
+func TestRunReportsDuration(t *testing.T) {
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
+
+	defer server.Close()
+
+	output := captureOutput(func() {
+		err := run([]string{server.URL})
+
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "ms") {
+		t.Fatalf(
+			"expected output to contain duration in milliseconds, got %q",
 			output,
 		)
 	}

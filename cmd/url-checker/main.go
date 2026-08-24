@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/musanii/go-url-checker/internal/checker"
 )
@@ -25,9 +26,10 @@ func run(args []string) error {
 
 		}
 		fmt.Printf(
-			"%s  %d\n",
+			"%s  %d %s\n",
 			result.URL,
 			result.StatusCode,
+			result.Duration.Round(time.Millisecond),
 		)
 
 	}
