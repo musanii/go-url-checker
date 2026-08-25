@@ -2,16 +2,29 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/musanii/go-url-checker/internal/checker"
 )
 
+type fakeURLChecker struct {
+	results []checker.CheckResult
+}
+
+func (f fakeURLChecker) CheckMultipleURLs(urls []string) []checker.CheckResult {
+	return f.results
+}
+
 func TestRunRequiresURLs(t *testing.T) {
-	err := run([]string{})
+
+	urlChecker := checkerService{}
+	err := run([]string{}, urlChecker)
 
 	if err == nil {
 		t.Fatal("expected URL argument error, got nil")
@@ -53,9 +66,10 @@ func TestRunChecksURLs(t *testing.T) {
 	)
 
 	defer server.Close()
+	urlChecker := checkerService{}
 
 	output := captureOutput(func() {
-		err := run([]string{server.URL})
+		err := run([]string{server.URL}, urlChecker)
 
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
@@ -77,7 +91,7 @@ func TestRunChecksURLs(t *testing.T) {
 		)
 	}
 
-	err := run([]string{server.URL})
+	err := run([]string{server.URL}, urlChecker)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -85,19 +99,24 @@ func TestRunChecksURLs(t *testing.T) {
 }
 
 func TestRunReportsURLCheckError(t *testing.T) {
+	expectedErr := errors.New("connection refused")
+	fake := fakeURLChecker{
+		results: []checker.CheckResult{
+			{
+				URL: "http://example.com",
+				Err: expectedErr,
+			},
+		},
+	}
 	output := captureOutput(func() {
-		err := run([]string{"http://127.0.0.1:59999"})
-
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
+		run([]string{"http://example.com"}, fake)
 
 	})
 
-	if !strings.Contains(output, "error") {
+	if !strings.Contains(output, "ERROR") {
 		t.Fatalf(
 			"expected output to contain %q, got %q",
-			"error",
+			"ERROR",
 			output,
 		)
 	}
@@ -111,9 +130,9 @@ func TestRunReportsDuration(t *testing.T) {
 	)
 
 	defer server.Close()
-
+	urlChecker := checkerService{}
 	output := captureOutput(func() {
-		err := run([]string{server.URL})
+		err := run([]string{server.URL}, urlChecker)
 
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
@@ -123,6 +142,141 @@ func TestRunReportsDuration(t *testing.T) {
 	if !strings.Contains(output, "ms") {
 		t.Fatalf(
 			"expected output to contain duration in milliseconds, got %q",
+			output,
+		)
+	}
+}
+
+func TestRunReturnsErrorWhenURLCheckFails(t *testing.T) {
+	expectedErr := errors.New("connection refused")
+	fake := fakeURLChecker{
+		results: []checker.CheckResult{
+			{
+				URL: "http://example.com",
+				Err: expectedErr,
+			},
+		},
+	}
+	err := run([]string{
+		"http://example.com",
+	}, fake)
+
+	if err != expectedErr {
+		t.Fatalf("expected error %q, got %q",
+			expectedErr,
+			err,
+		)
+	}
+}
+
+func TestRunSucceedsWhenURLReturnsSuccessStatus(t *testing.T) {
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
+	defer server.Close()
+	urlChecker := checkerService{}
+
+	err := run([]string{server.URL}, urlChecker)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+}
+
+func TestRunReturnsErrorWhenURLReturnsServerError(t *testing.T) {
+
+	fake := fakeURLChecker{
+		results: []checker.CheckResult{
+			{
+				URL:        "http://example.com",
+				StatusCode: 500,
+			},
+		},
+	}
+	err := run([]string{"http://example.com"}, fake)
+
+	if err == nil {
+		t.Fatalf("expected  error for HTTP 500, got nil")
+	}
+
+}
+
+func TestRunChecksAllURLsBeforeReturningError(t *testing.T) {
+	successURL := "http://success.example.com"
+	failureURL := "http://failure.example.com"
+
+	fake := fakeURLChecker{
+		results: []checker.CheckResult{
+			{
+				URL:        successURL,
+				StatusCode: 200,
+			},
+			{
+				URL:        failureURL,
+				StatusCode: 500,
+			},
+		},
+	}
+
+	var err error
+	output := captureOutput(func() {
+		err = run([]string{
+			successURL,
+			failureURL,
+		}, fake)
+	})
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(output, successURL) {
+		t.Fatalf(
+			"expected output to contain %q, got %q",
+			successURL,
+			output,
+		)
+	}
+
+	if !strings.Contains(output, failureURL) {
+		t.Fatalf(
+			"expected output to contain %q, got %q",
+			failureURL,
+			output,
+		)
+	}
+}
+
+func TestRunReportsURLCheckErrorDetail(t *testing.T) {
+	expectedErr := errors.New("connection refused")
+
+	fake := fakeURLChecker{
+		results: []checker.CheckResult{
+			{
+				URL: "http://example.com",
+				Err: expectedErr,
+			},
+		},
+	}
+
+	output := captureOutput(func() {
+		run([]string{"http://example.com"}, fake)
+	})
+
+	if !strings.Contains(output, "ERROR") {
+		t.Fatalf(
+			"expected output to contain status ERROR,got %q",
+			output,
+		)
+	}
+
+	if !strings.Contains(output, expectedErr.Error()) {
+		t.Fatalf(
+			"expected output to contain %q, got %q",
+			expectedErr.Error(),
 			output,
 		)
 	}
