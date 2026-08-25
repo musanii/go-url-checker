@@ -57,7 +57,7 @@ An HTTP failure reports the HTTP status:
 
 # Milestone 2 — Continuous Monitoring
 
-Status: NEXT
+Status: IN PROGRESS
 
 Turn the one-shot URL checker into a service that repeatedly checks
 configured URLs.
@@ -65,6 +65,7 @@ configured URLs.
 ## Goals
 
 - [ ] Run checks continuously
+- [ ] Run a URL check at a configurable interval
 - [ ] Configure check intervals
 - [ ] Track whether a URL is UP or DOWN
 - [ ] Detect transitions from UP → DOWN

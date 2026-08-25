@@ -19,6 +19,19 @@ func (checkerService) CheckMultipleURLs(urls []string) []checker.CheckResult {
 	return checker.CheckMultipleURLs(urls)
 }
 
+func monitor(urls []string, interval time.Duration, checks int, urlChecker URLChecker) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for i := 0; i < checks; i++ {
+		urlChecker.CheckMultipleURLs(urls)
+
+		if i < checks-1 {
+			<-ticker.C
+		}
+	}
+}
+
 func run(args []string, urlChecker URLChecker) error {
 	if len(args) == 0 {
 		return errors.New("at least one URL is required")
