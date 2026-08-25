@@ -9,15 +9,18 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/musanii/go-url-checker/internal/checker"
 )
 
 type fakeURLChecker struct {
 	results []checker.CheckResult
+	calls   int
 }
 
-func (f fakeURLChecker) CheckMultipleURLs(urls []string) []checker.CheckResult {
+func (f *fakeURLChecker) CheckMultipleURLs(urls []string) []checker.CheckResult {
+	f.calls++
 	return f.results
 }
 
@@ -109,7 +112,7 @@ func TestRunReportsURLCheckError(t *testing.T) {
 		},
 	}
 	output := captureOutput(func() {
-		run([]string{"http://example.com"}, fake)
+		run([]string{"http://example.com"}, &fake)
 
 	})
 
@@ -159,7 +162,7 @@ func TestRunReturnsErrorWhenURLCheckFails(t *testing.T) {
 	}
 	err := run([]string{
 		"http://example.com",
-	}, fake)
+	}, &fake)
 
 	if err != expectedErr {
 		t.Fatalf("expected error %q, got %q",
@@ -196,7 +199,7 @@ func TestRunReturnsErrorWhenURLReturnsServerError(t *testing.T) {
 			},
 		},
 	}
-	err := run([]string{"http://example.com"}, fake)
+	err := run([]string{"http://example.com"}, &fake)
 
 	if err == nil {
 		t.Fatalf("expected  error for HTTP 500, got nil")
@@ -226,7 +229,7 @@ func TestRunChecksAllURLsBeforeReturningError(t *testing.T) {
 		err = run([]string{
 			successURL,
 			failureURL,
-		}, fake)
+		}, &fake)
 	})
 
 	if err == nil {
@@ -263,7 +266,7 @@ func TestRunReportsURLCheckErrorDetail(t *testing.T) {
 	}
 
 	output := captureOutput(func() {
-		run([]string{"http://example.com"}, fake)
+		run([]string{"http://example.com"}, &fake)
 	})
 
 	if !strings.Contains(output, "ERROR") {
@@ -278,6 +281,24 @@ func TestRunReportsURLCheckErrorDetail(t *testing.T) {
 			"expected output to contain %q, got %q",
 			expectedErr.Error(),
 			output,
+		)
+	}
+}
+
+func TestMonitorChecksURLsRepeatedly(t *testing.T) {
+	fake := &fakeURLChecker{}
+
+	monitor(
+		[]string{"http://example.com"},
+		10*time.Millisecond,
+		3,
+		fake,
+	)
+
+	if fake.calls != 3 {
+		t.Fatalf(
+			"expected 3 checks, got %d",
+			fake.calls,
 		)
 	}
 }
