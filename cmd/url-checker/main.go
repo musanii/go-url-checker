@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -13,21 +14,44 @@ type URLChecker interface {
 	CheckMultipleURLs([]string) []checker.CheckResult
 }
 
+type URLState string
+
+const (
+	URLUp   URLState = "UP"
+	URLDown URLState = "DOWN"
+)
+
+type URLMonitor struct {
+	states map[string]URLState
+}
+
+func NewURLMonitor() *URLMonitor {
+	return &URLMonitor{
+		states: make(map[string]URLState),
+	}
+}
+
+func (m *URLMonitor) recordState(url string, state URLState) {
+	m.states[url] = state
+}
+
 type checkerService struct{}
 
 func (checkerService) CheckMultipleURLs(urls []string) []checker.CheckResult {
 	return checker.CheckMultipleURLs(urls)
 }
 
-func monitor(urls []string, interval time.Duration, checks int, urlChecker URLChecker) {
+func monitor(ctx context.Context, urls []string, interval time.Duration, urlChecker URLChecker) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for i := 0; i < checks; i++ {
+	for {
 		urlChecker.CheckMultipleURLs(urls)
 
-		if i < checks-1 {
-			<-ticker.C
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			return
 		}
 	}
 }
