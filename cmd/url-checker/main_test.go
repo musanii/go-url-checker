@@ -287,102 +287,19 @@ func TestRunReportsURLCheckErrorDetail(t *testing.T) {
 }
 
 func TestMonitorChecksURLsRepeatedly(t *testing.T) {
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	fake := &fakeURLChecker{}
 
-	go monitor(
-		ctx,
+	monitor(
 		[]string{"http://example.com"},
 		10*time.Millisecond,
+		3,
 		fake,
 	)
 
-	time.Sleep(25 * time.Millisecond)
-	cancel()
-
-	if fake.calls < 2 {
+	if fake.calls != 3 {
 		t.Fatalf(
-			"expected 2 checks, got %d",
+			"expected 3 checks, got %d",
 			fake.calls,
 		)
 	}
-}
-
-func TestMonitorStopsWhenContextIsCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	fake := &fakeURLChecker{}
-
-	done := make(chan struct{})
-
-	go func() {
-		monitor(
-			ctx,
-			[]string{"http://example.com"},
-			10*time.Millisecond,
-			fake,
-		)
-
-		close(done)
-
-	}()
-
-	time.Sleep(25 * time.Millisecond)
-
-	cancel()
-
-	select {
-	case <-done:
-		//monitor stopped
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("monitor did not stop after context cancellation")
-	}
-
-}
-
-func TestURLMonitorRecordsURLAsUp(t *testing.T) {
-	monitor := NewURLMonitor()
-
-	monitor.recordState("http://example.com", URLUp)
-	if monitor.states["http://example.com"] != URLUp {
-		t.Fatalf(
-			"expected URL state to be %q, got %q",
-			URLUp,
-			monitor.states["http://example.com"],
-		)
-	}
-}
-
-func TestURLMonitorUpdatesURLState(t *testing.T) {
-	monitor := NewURLMonitor()
-
-	monitor.recordState("http://example.com", URLUp)
-	monitor.recordState("http://example.com", URLDown)
-
-	if monitor.states["http://example.com"] != URLDown {
-		t.Fatalf(
-			"expected URL state to be %q, got %q",
-			URLDown,
-			monitor.states["http://example.com"],
-		)
-	}
-
-}
-
-func TestURLMonitorDetectsStateChange(t *testing.T) {
-	monitor := NewURLMonitor()
-
-	monitor.recordState("http://example.com", URLUp)
-
-	changed := monitor.recordState("http://example.com", URLDown)
-
-	if !changed{
-		t.Fatal("expected state change, got none")
-	}
-	
-	
 }

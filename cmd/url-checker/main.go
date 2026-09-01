@@ -41,17 +41,15 @@ func (checkerService) CheckMultipleURLs(urls []string) []checker.CheckResult {
 	return checker.CheckMultipleURLs(urls)
 }
 
-func monitor(ctx context.Context, urls []string, interval time.Duration, urlChecker URLChecker) {
+func monitor(urls []string, interval time.Duration, checks int, urlChecker URLChecker) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for {
+	for i := 0; i < checks; i++ {
 		urlChecker.CheckMultipleURLs(urls)
 
-		select {
-		case <-ticker.C:
-		case <-ctx.Done():
-			return
+		if i < checks-1 {
+			<-ticker.C
 		}
 	}
 }
