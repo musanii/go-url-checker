@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -16,12 +15,18 @@ import (
 )
 
 type fakeURLChecker struct {
-	results []checker.CheckResult
-	calls   int
+	results  []checker.CheckResult
+	sequence []checker.CheckResult
+	calls    int
 }
 
 func (f *fakeURLChecker) CheckMultipleURLs(urls []string) []checker.CheckResult {
 	f.calls++
+	if len(f.sequence) > 0 {
+		result := f.sequence[f.calls-1]
+		return []checker.CheckResult{result}
+
+	}
 	return f.results
 }
 
@@ -288,12 +293,14 @@ func TestRunReportsURLCheckErrorDetail(t *testing.T) {
 
 func TestMonitorChecksURLsRepeatedly(t *testing.T) {
 	fake := &fakeURLChecker{}
+	urlMonitor := NewURLMonitor()
 
 	monitor(
 		[]string{"http://example.com"},
 		10*time.Millisecond,
 		3,
 		fake,
+		urlMonitor,
 	)
 
 	if fake.calls != 3 {
@@ -301,5 +308,93 @@ func TestMonitorChecksURLsRepeatedly(t *testing.T) {
 			"expected 3 checks, got %d",
 			fake.calls,
 		)
+	}
+}
+
+func TestURLMonitorDetectsStateChange(t *testing.T) {
+	monitor := NewURLMonitor()
+
+	monitor.recordState("http://example.com", URLUp)
+
+	changed := monitor.recordState("http://example.com", URLDown)
+
+	if !changed {
+		t.Fatal("expected state change, got none")
+	}
+
+}
+
+func TestURLMonitorDoesNotDetectChangeWhenStateIsSame(t *testing.T) {
+	monitor := NewURLMonitor()
+	monitor.recordState("http://example.com", URLUp)
+
+	changed := monitor.recordState("http://example.com", URLUp)
+
+	if changed {
+		t.Fatalf("expected no change, got %v", changed)
+
+	}
+
+}
+
+func TestURLMonitorDoesNotDetectChangeForFirstObservation(t *testing.T) {
+	monitor := NewURLMonitor()
+	changed := monitor.recordState("http://example.com", URLUp)
+
+	if changed {
+		t.Fatal("expected no state change, got a change")
+	}
+
+}
+
+func TestURLMonitorRecordsURLAsUp(t *testing.T) {
+	monitor := NewURLMonitor()
+	monitor.recordState("http://example.com", URLUp)
+	state := monitor.states["http://example.com"]
+	if state != URLUp {
+		t.Fatalf("expected the state to be UP, got %v", state)
+	}
+}
+
+func TestDetermineStateReturnsUpWhenCheckSucceeds(t *testing.T) {
+	result := checker.CheckResult{
+		StatusCode: 200,
+	}
+
+	state := determineState(result)
+
+	if state != URLUp {
+		t.Fatalf("expected URL to be UP, got %v", state)
+	}
+}
+
+func TestMonitorDetectsStateChange(t *testing.T) {
+	fakeChecker := &fakeURLChecker{
+		sequence: []checker.CheckResult{
+			{
+				URL:        "http://example.com",
+				StatusCode: 200,
+			},
+			{
+				URL:        "http://example.com",
+				StatusCode: 500,
+			},
+		},
+	}
+
+	urlMonitor := NewURLMonitor()
+
+	monitor(
+		[]string{"http://example.com"},
+		1*time.Millisecond,
+		2,
+		fakeChecker,
+		urlMonitor,
+	)
+
+	state := urlMonitor.states["http://example.com"]
+
+	if state != URLDown {
+		t.Fatalf("expected final state to be DOWN, got %v", state)
 	}
 }

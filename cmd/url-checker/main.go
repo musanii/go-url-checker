@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -31,8 +30,16 @@ func NewURLMonitor() *URLMonitor {
 	}
 }
 
-func (m *URLMonitor) recordState(url string, state URLState) {
+func (m *URLMonitor) recordState(url string, state URLState) bool {
+	previousState, ok := m.states[url]
+	changed := false
+
+	if ok && previousState != state {
+		changed = true
+	}
 	m.states[url] = state
+
+	return changed
 }
 
 type checkerService struct{}
@@ -41,17 +48,33 @@ func (checkerService) CheckMultipleURLs(urls []string) []checker.CheckResult {
 	return checker.CheckMultipleURLs(urls)
 }
 
-func monitor(urls []string, interval time.Duration, checks int, urlChecker URLChecker) {
+func monitor(urls []string, interval time.Duration, checks int, urlChecker URLChecker, urlMonitor *URLMonitor) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for i := 0; i < checks; i++ {
-		urlChecker.CheckMultipleURLs(urls)
+		results := urlChecker.CheckMultipleURLs(urls)
+
+		for _, result := range results {
+			state := determineState(result)
+			changed := urlMonitor.recordState(result.URL, state)
+			if changed {
+				fmt.Printf("%s changed to %s\n", result.URL, state)
+			}
+
+		}
 
 		if i < checks-1 {
 			<-ticker.C
 		}
 	}
+}
+
+func determineState(result checker.CheckResult) URLState {
+	if result.Err == nil && result.StatusCode < 400 {
+		return URLUp
+	}
+	return URLDown
 }
 
 func run(args []string, urlChecker URLChecker) error {
