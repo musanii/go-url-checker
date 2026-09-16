@@ -21,12 +21,14 @@ const (
 )
 
 type URLMonitor struct {
-	states map[string]URLState
+	states    map[string]URLState
+	latencies map[string]time.Duration
 }
 
 func NewURLMonitor() *URLMonitor {
 	return &URLMonitor{
-		states: make(map[string]URLState),
+		states:    make(map[string]URLState),
+		latencies: make(map[string]time.Duration),
 	}
 }
 
@@ -58,6 +60,9 @@ func monitor(urls []string, interval time.Duration, checks int, urlChecker URLCh
 		for _, result := range results {
 			state := determineState(result)
 			changed := urlMonitor.recordState(result.URL, state)
+
+			urlMonitor.latencies[result.URL] = result.Duration
+
 			if changed {
 				fmt.Printf("%s changed to %s\n", result.URL, state)
 			}

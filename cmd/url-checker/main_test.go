@@ -398,3 +398,31 @@ func TestMonitorDetectsStateChange(t *testing.T) {
 		t.Fatalf("expected final state to be DOWN, got %v", state)
 	}
 }
+
+func TestURLMonitorRecordsResponseLatency(t *testing.T){
+	fakeChecker := &fakeURLChecker{
+		sequence: []checker.CheckResult{
+			{
+			URL: "http://example.com",
+			StatusCode:200,
+			Duration:150*time.Millisecond,
+		},
+	},
+}
+
+urlMonitor := NewURLMonitor()
+
+monitor(
+	[]string{"http://example.com"},
+	1*time.Millisecond,
+	1,
+	fakeChecker,
+	urlMonitor,
+)
+
+latency := urlMonitor.latencies["http://example.com"]
+
+if latency != 150*time.Millisecond{
+	t.Fatalf("expected latency of 150ms, got %v", latency)
+}
+}
