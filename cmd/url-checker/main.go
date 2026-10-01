@@ -23,12 +23,20 @@ const (
 type URLMonitor struct {
 	states    map[string]URLState
 	latencies map[string]time.Duration
+	history   map[string][]CheckHistory
+}
+
+type CheckHistory struct {
+	Timestamp time.Time
+	State     URLState
+	Latency   time.Duration
 }
 
 func NewURLMonitor() *URLMonitor {
 	return &URLMonitor{
 		states:    make(map[string]URLState),
 		latencies: make(map[string]time.Duration),
+		history:   make(map[string][]CheckHistory),
 	}
 }
 
@@ -63,6 +71,15 @@ func monitor(urls []string, interval time.Duration, checks int, urlChecker URLCh
 
 			urlMonitor.latencies[result.URL] = result.Duration
 
+			urlMonitor.history[result.URL] = append(
+				urlMonitor.history[result.URL],
+				CheckHistory{
+					Timestamp: time.Now(),
+					State:     state,
+					Latency:   result.Duration,
+				},
+			)
+
 			if changed {
 				fmt.Printf("%s changed to %s\n", result.URL, state)
 			}
@@ -80,6 +97,10 @@ func determineState(result checker.CheckResult) URLState {
 		return URLUp
 	}
 	return URLDown
+}
+
+func isSlowResponse(duration time.Duration) bool {
+	return duration >= 500*time.Millisecond
 }
 
 func run(args []string, urlChecker URLChecker) error {

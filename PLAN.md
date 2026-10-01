@@ -16,7 +16,6 @@ The first version of the project focused on building a reliable command-line
 URL checking tool.
 
 ## Goals
-
 - [x] Accept URLs from the command line
 - [x] Validate that at least one URL is provided
 - [x] Validate CLI URL arguments
@@ -64,15 +63,15 @@ configured URLs.
 
 ## Goals
 
-- [ ] Run checks continuously
-- [ ] Run a URL check at a configurable interval
-- [ ] Configure check intervals
-- [ ] Track whether a URL is UP or DOWN
-- [ ] Detect transitions from UP → DOWN
-- [ ] Detect transitions from DOWN → UP
-- [ ] Track response latency
-- [ ] Detect slow responses
-- [ ] Record check history
+- [x] Run checks continuously
+- [x] Run a URL check at a configurable interval
+- [x] Configure check intervals
+- [x] Track whether a URL is UP or DOWN
+- [x] Detect transitions from UP → DOWN
+- [x] Detect transitions from DOWN → UP
+- [x] Track response latency
+- [x] Detect slow responses
+- [x] Record check history
 - [ ] Avoid repeatedly alerting for the same outage
 
 ## Go concepts we expect to learn

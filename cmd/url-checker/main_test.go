@@ -399,30 +399,131 @@ func TestMonitorDetectsStateChange(t *testing.T) {
 	}
 }
 
-func TestURLMonitorRecordsResponseLatency(t *testing.T){
+func TestURLMonitorRecordsResponseLatency(t *testing.T) {
 	fakeChecker := &fakeURLChecker{
 		sequence: []checker.CheckResult{
 			{
-			URL: "http://example.com",
-			StatusCode:200,
-			Duration:150*time.Millisecond,
+				URL:        "http://example.com",
+				StatusCode: 200,
+				Duration:   150 * time.Millisecond,
+			},
 		},
-	},
+	}
+
+	urlMonitor := NewURLMonitor()
+
+	monitor(
+		[]string{"http://example.com"},
+		1*time.Millisecond,
+		1,
+		fakeChecker,
+		urlMonitor,
+	)
+
+	latency := urlMonitor.latencies["http://example.com"]
+
+	if latency != 150*time.Millisecond {
+		t.Fatalf("expected latency of 150ms, got %v", latency)
+	}
 }
 
-urlMonitor := NewURLMonitor()
+func TestURLMonitorDetectsSlowResponse(t *testing.T) {
+	result := checker.CheckResult{
+		URL:      "http://example.com",
+		Duration: 600 * time.Millisecond,
+	}
 
-monitor(
-	[]string{"http://example.com"},
-	1*time.Millisecond,
-	1,
-	fakeChecker,
-	urlMonitor,
-)
+	slow := isSlowResponse(result.Duration)
 
-latency := urlMonitor.latencies["http://example.com"]
-
-if latency != 150*time.Millisecond{
-	t.Fatalf("expected latency of 150ms, got %v", latency)
+	if !slow {
+		t.Fatal("expected response to be slow")
+	}
 }
+
+func TestURLMonitorRecordsCheckHistory(t *testing.T) {
+	fakeChecker := &fakeURLChecker{
+		sequence: []checker.CheckResult{
+			{
+				URL:        "http://example.com",
+				StatusCode: 200,
+				Duration:   150 * time.Millisecond,
+			},
+		},
+	}
+	urlMonitor := NewURLMonitor()
+	monitor(
+		[]string{"http://example.com"},
+		1*time.Millisecond,
+		1,
+		fakeChecker,
+		urlMonitor,
+	)
+	history := urlMonitor.history["http://example.com"]
+
+	if len(history) != 1 {
+		t.Fatalf("expected 1 history entry, got %d", len(history))
+	}
+
+	entry := history[0]
+
+	if entry.State != URLUp {
+		t.Fatalf("expected state to be UP, got %v", entry.State)
+	}
+
+	if entry.Latency != 150*time.Millisecond {
+		t.Fatalf("expected latency of 150ms, got %v", entry.Latency)
+	}
+
+	if entry.Timestamp.IsZero() {
+		t.Fatalf("expected timestamp to be recorded")
+	}
+
+}
+
+func TestURLMonitorPreservesMultipleCheckHistoryEntries(t *testing.T) {
+	fakeChecker := &fakeURLChecker{
+		sequence: []checker.CheckResult{
+			{
+				URL:        "http://example.com",
+				StatusCode: 200,
+				Duration:   100 * time.Millisecond,
+			},
+			{
+				URL:        "http://example.com",
+				StatusCode: 500,
+				Duration:   200 * time.Millisecond,
+			},
+		},
+	}
+	urlMonitor := NewURLMonitor()
+
+	monitor(
+		[]string{"http://example.com"},
+		1*time.Millisecond,
+		2,
+		fakeChecker,
+		urlMonitor,
+	)
+
+	history := urlMonitor.history["http://example.com"]
+
+	if len(history) != 2 {
+		t.Fatalf("expected 2 history entries, got %d", len(history))
+	}
+
+	if history[0].State != URLUp {
+		t.Fatalf("expected first state to be UP, got %v", history[0].State)
+	}
+
+	if history[1].State != URLDown {
+		t.Fatalf("expected second state to be DOWN, got %v", history[1].State)
+	}
+
+	if history[0].Latency != 100*time.Millisecond {
+		t.Fatalf("expected first latency to be 100ms, got %v", history[0].Latency)
+	}
+
+	if history[1].Latency != 200*time.Millisecond {
+		t.Fatalf("expected second latency to be 200ms, got %v", history[1].Latency)
+	}
 }
