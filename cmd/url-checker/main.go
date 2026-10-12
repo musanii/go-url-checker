@@ -14,6 +14,10 @@ type URLChecker interface {
 	CheckMultipleURLs([]string) []checker.CheckResult
 }
 
+type ContextURLChecker interface {
+	CheckMultipleURLsWithContext(context.Context, []string) []checker.CheckResult
+}
+
 type URLState string
 
 const (
@@ -62,6 +66,10 @@ func (checkerService) CheckMultipleURLs(urls []string) []checker.CheckResult {
 	return checker.CheckMultipleURLs(urls)
 }
 
+func (checkerService) CheckMultipleURLsWithContext(ctx context.Context, urls []string) []checker.CheckResult {
+	return checker.CheckMultipleURLsWithContext(ctx, urls)
+}
+
 func monitor(ctx context.Context, urls []string, interval time.Duration, checks int, urlChecker URLChecker, urlMonitor *URLMonitor, alert func(Alert)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -73,7 +81,11 @@ func monitor(ctx context.Context, urls []string, interval time.Duration, checks 
 		default:
 		}
 
-		results := urlChecker.CheckMultipleURLs(urls)
+		contextChecker, ok := urlChecker.(ContextURLChecker)
+		if !ok {
+			return
+		}
+		results := contextChecker.CheckMultipleURLsWithContext(ctx, urls)
 
 		for _, result := range results {
 			state := determineState(result)
