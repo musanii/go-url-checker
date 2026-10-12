@@ -35,6 +35,10 @@ func (f *fakeURLChecker) CheckMultipleURLs(urls []string) []checker.CheckResult 
 	return f.results
 }
 
+func (f *fakeURLChecker) CheckMultipleURLsWithContext(ctx context.Context, urls []string) []checker.CheckResult {
+	return f.CheckMultipleURLs(urls)
+}
+
 func TestRunRequiresURLs(t *testing.T) {
 
 	urlChecker := checkerService{}

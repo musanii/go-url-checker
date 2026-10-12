@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"time"
@@ -47,6 +48,43 @@ func CheckURLWithTimeout(url string, timeout time.Duration) CheckResult {
 
 }
 
+func CheckURLWithContext(ctx context.Context, url string, timeout time.Duration) CheckResult {
+	start := time.Now()
+
+	client := http.Client{
+		Timeout: timeout,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return CheckResult{
+			URL:      url,
+			Err:      err,
+			Duration: time.Since(start),
+		}
+	}
+
+	response, err := client.Do(req)
+	duration := time.Since(start)
+
+	if err != nil {
+		return CheckResult{
+			URL:      url,
+			Err:      err,
+			Duration: duration,
+		}
+	}
+
+	defer response.Body.Close()
+
+	return CheckResult{
+		URL:        url,
+		StatusCode: response.StatusCode,
+		Duration:   duration,
+	}
+
+}
+
 func CheckMultipleURLs(urls []string) []CheckResult {
 	results := make([]CheckResult, len(urls))
 
@@ -66,4 +104,21 @@ func CheckMultipleURLs(urls []string) []CheckResult {
 
 	return results
 
+}
+
+func CheckMultipleURLsWithContext(ctx context.Context, urls []string) []CheckResult {
+	results := make([]CheckResult, len(urls))
+
+	var wg sync.WaitGroup
+	wg.Add(len(urls))
+
+	for i, url := range urls {
+		go func(i int, url string) {
+			defer wg.Done()
+			results[i] = CheckURLWithContext(ctx, url, 7*time.Second)
+		}(i, url)
+	}
+
+	wg.Wait()
+	return results
 }
