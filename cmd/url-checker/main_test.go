@@ -574,6 +574,12 @@ func TestMonitorAlertsOnlyWhenURLStateChanges(t *testing.T) {
 		t.Fatalf("expected 2 alerts, got %d", len(alerts))
 	}
 
+	for _, alert := range alerts {
+		if alert.URL != "http://example.com" {
+			t.Errorf("expected URL http://example.com, got %s", alert.URL)
+		}
+	}
+
 	if alerts[0].Previous != URLUp || alerts[0].Current != URLDown {
 		t.Errorf("expected first alert to be UP -> DOWN, got %s -> %s",
 			alerts[0].Previous, alerts[0].Current)

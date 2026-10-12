@@ -32,10 +32,10 @@ type CheckHistory struct {
 	Latency   time.Duration
 }
 
-type Alert struct{
-	URL string
-	Previous URLState
-	Current URLState
+type Alert struct {
+	URL       string
+	Previous  URLState
+	Current   URLState
 	Timestamp time.Time
 }
 
@@ -52,7 +52,7 @@ func (m *URLMonitor) recordState(url string, state URLState) (URLState, bool) {
 	changed := ok && previousState != state
 	m.states[url] = state
 
-	return  previousState, changed
+	return previousState, changed
 }
 
 type checkerService struct{}
@@ -85,9 +85,9 @@ func monitor(urls []string, interval time.Duration, checks int, urlChecker URLCh
 
 			if changed {
 				alert(Alert{
-					URL: result.URL,
-					Previous: previousState,
-					Current: state,
+					URL:       result.URL,
+					Previous:  previousState,
+					Current:   state,
 					Timestamp: time.Now(),
 				})
 			}
