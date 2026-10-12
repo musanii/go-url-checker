@@ -106,6 +106,9 @@ func monitor(ctx context.Context, urls []string, interval time.Duration, checks 
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if ctx.Err() != nil {
+					return
+				}
 			}
 		}
 	}
