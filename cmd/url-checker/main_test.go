@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -18,10 +19,14 @@ type fakeURLChecker struct {
 	results  []checker.CheckResult
 	sequence []checker.CheckResult
 	calls    int
+	cancel   context.CancelFunc
 }
 
 func (f *fakeURLChecker) CheckMultipleURLs(urls []string) []checker.CheckResult {
 	f.calls++
+	if f.cancel != nil {
+		f.cancel()
+	}
 	if len(f.sequence) > 0 {
 		result := f.sequence[f.calls-1]
 		return []checker.CheckResult{result}
@@ -291,11 +296,72 @@ func TestRunReportsURLCheckErrorDetail(t *testing.T) {
 	}
 }
 
+func TestMonitorStopsWhenContextIsCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	fake := &fakeURLChecker{
+		results: []checker.CheckResult{
+			{
+				URL:        "http://example.com",
+				StatusCode: 200,
+			},
+		},
+		cancel: cancel,
+	}
+	urlMonitor := NewURLMonitor()
+
+	monitor(
+		ctx,
+		[]string{"http://example.com"},
+		time.Hour,
+		3,
+		fake,
+		urlMonitor,
+		func(Alert) {},
+	)
+
+	if fake.calls != 1 {
+		t.Fatalf("expected 1 check before cancellation, got %d", fake.calls)
+	}
+}
+
+func TestMonitorDoesNotCheckURLsWhenContextIsAlreadyCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	fake := &fakeURLChecker{
+		results: []checker.CheckResult{
+			{
+				URL:        "http://example.com",
+				StatusCode: 200,
+			},
+		},
+	}
+
+	urlMonitor := NewURLMonitor()
+
+	monitor(
+		ctx,
+		[]string{"http://example.com"},
+		time.Millisecond,
+		3,
+		fake,
+		urlMonitor,
+		func(Alert) {},
+	)
+
+	if fake.calls != 0 {
+		t.Fatalf("expected 0 checks, got %d", fake.calls)
+	}
+}
+
 func TestMonitorChecksURLsRepeatedly(t *testing.T) {
 	fake := &fakeURLChecker{}
 	urlMonitor := NewURLMonitor()
 
 	monitor(
+		context.Background(),
 		[]string{"http://example.com"},
 		10*time.Millisecond,
 		3,
@@ -386,6 +452,7 @@ func TestMonitorDetectsStateChange(t *testing.T) {
 	urlMonitor := NewURLMonitor()
 
 	monitor(
+		context.Background(),
 		[]string{"http://example.com"},
 		1*time.Millisecond,
 		2,
@@ -415,6 +482,7 @@ func TestURLMonitorRecordsResponseLatency(t *testing.T) {
 	urlMonitor := NewURLMonitor()
 
 	monitor(
+		context.Background(),
 		[]string{"http://example.com"},
 		1*time.Millisecond,
 		1,
@@ -455,6 +523,7 @@ func TestURLMonitorRecordsCheckHistory(t *testing.T) {
 	}
 	urlMonitor := NewURLMonitor()
 	monitor(
+		context.Background(),
 		[]string{"http://example.com"},
 		1*time.Millisecond,
 		1,
@@ -502,6 +571,7 @@ func TestURLMonitorPreservesMultipleCheckHistoryEntries(t *testing.T) {
 	urlMonitor := NewURLMonitor()
 
 	monitor(
+		context.Background(),
 		[]string{"http://example.com"},
 		1*time.Millisecond,
 		2,
@@ -562,6 +632,7 @@ func TestMonitorAlertsOnlyWhenURLStateChanges(t *testing.T) {
 	}
 
 	monitor(
+		context.Background(),
 		[]string{"http://example.com"},
 		1*time.Millisecond,
 		4,

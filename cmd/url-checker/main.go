@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -61,11 +62,17 @@ func (checkerService) CheckMultipleURLs(urls []string) []checker.CheckResult {
 	return checker.CheckMultipleURLs(urls)
 }
 
-func monitor(urls []string, interval time.Duration, checks int, urlChecker URLChecker, urlMonitor *URLMonitor, alert func(Alert)) {
+func monitor(ctx context.Context, urls []string, interval time.Duration, checks int, urlChecker URLChecker, urlMonitor *URLMonitor, alert func(Alert)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for i := 0; i < checks; i++ {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		results := urlChecker.CheckMultipleURLs(urls)
 
 		for _, result := range results {
@@ -95,7 +102,11 @@ func monitor(urls []string, interval time.Duration, checks int, urlChecker URLCh
 		}
 
 		if i < checks-1 {
-			<-ticker.C
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
 		}
 	}
 }
