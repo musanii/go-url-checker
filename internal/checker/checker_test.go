@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -234,4 +235,30 @@ func TestCheckMultipleURLsRunsConcurrently(t *testing.T) {
 		)
 	}
 
+}
+
+func TestCheckURLWithContextCancelsRequest(t *testing.T) {
+	requestStarted := make(chan struct{})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(requestStarted)
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	resultCh := make(chan CheckResult, 1)
+	go func() {
+		resultCh <- CheckURLWithContext(ctx, server.URL, 5*time.Second)
+	}()
+
+	<-requestStarted
+	cancel()
+
+	result := <-resultCh
+
+	if result.Err == nil {
+		t.Fatal("expected an error after request cancellation, got nil")
+	}
 }
