@@ -58,7 +58,7 @@ func (checkerService) CheckMultipleURLs(urls []string) []checker.CheckResult {
 	return checker.CheckMultipleURLs(urls)
 }
 
-func monitor(urls []string, interval time.Duration, checks int, urlChecker URLChecker, urlMonitor *URLMonitor) {
+func monitor(urls []string, interval time.Duration, checks int, urlChecker URLChecker, urlMonitor *URLMonitor, alert func(string,URLState)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -81,7 +81,7 @@ func monitor(urls []string, interval time.Duration, checks int, urlChecker URLCh
 			)
 
 			if changed {
-				fmt.Printf("%s changed to %s\n", result.URL, state)
+				alert(result.URL, state)
 			}
 
 		}

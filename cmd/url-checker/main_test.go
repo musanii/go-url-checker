@@ -301,6 +301,7 @@ func TestMonitorChecksURLsRepeatedly(t *testing.T) {
 		3,
 		fake,
 		urlMonitor,
+		func(string, URLState) {},
 	)
 
 	if fake.calls != 3 {
@@ -390,6 +391,7 @@ func TestMonitorDetectsStateChange(t *testing.T) {
 		2,
 		fakeChecker,
 		urlMonitor,
+		func(string, URLState) {},
 	)
 
 	state := urlMonitor.states["http://example.com"]
@@ -418,6 +420,7 @@ func TestURLMonitorRecordsResponseLatency(t *testing.T) {
 		1,
 		fakeChecker,
 		urlMonitor,
+		func(string, URLState) {},
 	)
 
 	latency := urlMonitor.latencies["http://example.com"]
@@ -457,6 +460,7 @@ func TestURLMonitorRecordsCheckHistory(t *testing.T) {
 		1,
 		fakeChecker,
 		urlMonitor,
+		func(string, URLState) {},
 	)
 	history := urlMonitor.history["http://example.com"]
 
@@ -503,6 +507,7 @@ func TestURLMonitorPreservesMultipleCheckHistoryEntries(t *testing.T) {
 		2,
 		fakeChecker,
 		urlMonitor,
+		func(string, URLState) {},
 	)
 
 	history := urlMonitor.history["http://example.com"]
@@ -527,3 +532,48 @@ func TestURLMonitorPreservesMultipleCheckHistoryEntries(t *testing.T) {
 		t.Fatalf("expected second latency to be 200ms, got %v", history[1].Latency)
 	}
 }
+
+func TestMonitorAlertsOnlyWhenURLStateChanges(t *testing.T){
+	fakeChecker := &fakeURLChecker{
+		sequence: []checker.CheckResult{
+			{
+				  URL:        "http://example.com",
+                StatusCode: 200,
+			},
+			{
+				  URL:        "http://example.com",
+                StatusCode: 500,
+			},
+			{
+				  URL:        "http://example.com",
+                StatusCode: 500,
+			},
+			{
+				  URL:        "http://example.com",
+                StatusCode: 200,
+			},
+		},
+	}
+	urlMonitor := NewURLMonitor()
+	alertCount := 0
+
+	alert := func (url string, state URLState)  {
+		alertCount++	
+	}
+
+
+	monitor(
+		[]string{"http://example.com"},
+		1*time.Millisecond,
+		4,
+		fakeChecker,
+		urlMonitor,
+		alert,
+	)
+
+	if alertCount != 2 {
+		t.Fatalf("expected 2 alerts, got %d", alertCount)
+	}
+}
+
+

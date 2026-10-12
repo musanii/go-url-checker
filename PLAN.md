@@ -72,7 +72,7 @@ configured URLs.
 - [x] Track response latency
 - [x] Detect slow responses
 - [x] Record check history
-- [ ] Avoid repeatedly alerting for the same outage
+- [x] Avoid repeatedly alerting for the same outage
 
 ## Go concepts we expect to learn
 
