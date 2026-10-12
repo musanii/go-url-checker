@@ -301,7 +301,7 @@ func TestMonitorChecksURLsRepeatedly(t *testing.T) {
 		3,
 		fake,
 		urlMonitor,
-		func(string, URLState) {},
+		func(Alert) {},
 	)
 
 	if fake.calls != 3 {
@@ -317,7 +317,7 @@ func TestURLMonitorDetectsStateChange(t *testing.T) {
 
 	monitor.recordState("http://example.com", URLUp)
 
-	changed := monitor.recordState("http://example.com", URLDown)
+	_, changed := monitor.recordState("http://example.com", URLDown)
 
 	if !changed {
 		t.Fatal("expected state change, got none")
@@ -329,7 +329,7 @@ func TestURLMonitorDoesNotDetectChangeWhenStateIsSame(t *testing.T) {
 	monitor := NewURLMonitor()
 	monitor.recordState("http://example.com", URLUp)
 
-	changed := monitor.recordState("http://example.com", URLUp)
+	_, changed := monitor.recordState("http://example.com", URLUp)
 
 	if changed {
 		t.Fatalf("expected no change, got %v", changed)
@@ -340,7 +340,7 @@ func TestURLMonitorDoesNotDetectChangeWhenStateIsSame(t *testing.T) {
 
 func TestURLMonitorDoesNotDetectChangeForFirstObservation(t *testing.T) {
 	monitor := NewURLMonitor()
-	changed := monitor.recordState("http://example.com", URLUp)
+	_, changed := monitor.recordState("http://example.com", URLUp)
 
 	if changed {
 		t.Fatal("expected no state change, got a change")
@@ -391,7 +391,7 @@ func TestMonitorDetectsStateChange(t *testing.T) {
 		2,
 		fakeChecker,
 		urlMonitor,
-		func(string, URLState) {},
+		func(Alert) {},
 	)
 
 	state := urlMonitor.states["http://example.com"]
@@ -420,7 +420,7 @@ func TestURLMonitorRecordsResponseLatency(t *testing.T) {
 		1,
 		fakeChecker,
 		urlMonitor,
-		func(string, URLState) {},
+		func(Alert) {},
 	)
 
 	latency := urlMonitor.latencies["http://example.com"]
@@ -460,7 +460,7 @@ func TestURLMonitorRecordsCheckHistory(t *testing.T) {
 		1,
 		fakeChecker,
 		urlMonitor,
-		func(string, URLState) {},
+		func(Alert) {},
 	)
 	history := urlMonitor.history["http://example.com"]
 
@@ -507,7 +507,7 @@ func TestURLMonitorPreservesMultipleCheckHistoryEntries(t *testing.T) {
 		2,
 		fakeChecker,
 		urlMonitor,
-		func(string, URLState) {},
+		func(Alert) {},
 	)
 
 	history := urlMonitor.history["http://example.com"]
@@ -533,34 +533,33 @@ func TestURLMonitorPreservesMultipleCheckHistoryEntries(t *testing.T) {
 	}
 }
 
-func TestMonitorAlertsOnlyWhenURLStateChanges(t *testing.T){
+func TestMonitorAlertsOnlyWhenURLStateChanges(t *testing.T) {
 	fakeChecker := &fakeURLChecker{
 		sequence: []checker.CheckResult{
 			{
-				  URL:        "http://example.com",
-                StatusCode: 200,
+				URL:        "http://example.com",
+				StatusCode: 200,
 			},
 			{
-				  URL:        "http://example.com",
-                StatusCode: 500,
+				URL:        "http://example.com",
+				StatusCode: 500,
 			},
 			{
-				  URL:        "http://example.com",
-                StatusCode: 500,
+				URL:        "http://example.com",
+				StatusCode: 500,
 			},
 			{
-				  URL:        "http://example.com",
-                StatusCode: 200,
+				URL:        "http://example.com",
+				StatusCode: 200,
 			},
 		},
 	}
 	urlMonitor := NewURLMonitor()
-	alertCount := 0
+	var alerts []Alert
 
-	alert := func (url string, state URLState)  {
-		alertCount++	
+	alert := func(alert Alert) {
+		alerts = append(alerts, alert)
 	}
-
 
 	monitor(
 		[]string{"http://example.com"},
@@ -571,9 +570,46 @@ func TestMonitorAlertsOnlyWhenURLStateChanges(t *testing.T){
 		alert,
 	)
 
-	if alertCount != 2 {
-		t.Fatalf("expected 2 alerts, got %d", alertCount)
+	if len(alerts) != 2 {
+		t.Fatalf("expected 2 alerts, got %d", len(alerts))
 	}
+
+	if alerts[0].Previous != URLUp || alerts[0].Current != URLDown {
+		t.Errorf("expected first alert to be UP -> DOWN, got %s -> %s",
+			alerts[0].Previous, alerts[0].Current)
+	}
+
+	if alerts[1].Previous != URLDown || alerts[1].Current != URLUp {
+		t.Errorf("expected second alert to be DOWN -> UP, got %s -> %s",
+			alerts[1].Previous, alerts[1].Current)
+	}
+
+	if alerts[0].Timestamp.IsZero() || alerts[1].Timestamp.IsZero() {
+		t.Error("expected alerts to have timestamps")
+	}
+
 }
 
+func TestAlertContainsStateTransitionDetails(t *testing.T) {
+	alert := Alert{
+		URL:       "https://example.com",
+		Previous:  URLUp,
+		Current:   URLDown,
+		Timestamp: time.Date(2026, 10, 12, 12, 30, 0, 0, time.UTC),
+	}
+	if alert.URL != "https://example.com" {
+		t.Errorf("expected URL https://example.com, got %s", alert.URL)
+	}
 
+	if alert.Previous != URLUp {
+		t.Errorf("expected previous state UP, got %s", alert.Previous)
+	}
+	if alert.Current != URLDown {
+		t.Errorf("expected current state DOWN, got %s", alert.Current)
+	}
+
+	if alert.Timestamp.IsZero() {
+		t.Errorf("expected alert timestamp to be set")
+	}
+
+}

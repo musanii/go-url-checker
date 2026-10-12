@@ -32,6 +32,13 @@ type CheckHistory struct {
 	Latency   time.Duration
 }
 
+type Alert struct{
+	URL string
+	Previous URLState
+	Current URLState
+	Timestamp time.Time
+}
+
 func NewURLMonitor() *URLMonitor {
 	return &URLMonitor{
 		states:    make(map[string]URLState),
@@ -40,16 +47,12 @@ func NewURLMonitor() *URLMonitor {
 	}
 }
 
-func (m *URLMonitor) recordState(url string, state URLState) bool {
+func (m *URLMonitor) recordState(url string, state URLState) (URLState, bool) {
 	previousState, ok := m.states[url]
-	changed := false
-
-	if ok && previousState != state {
-		changed = true
-	}
+	changed := ok && previousState != state
 	m.states[url] = state
 
-	return changed
+	return  previousState, changed
 }
 
 type checkerService struct{}
@@ -58,7 +61,7 @@ func (checkerService) CheckMultipleURLs(urls []string) []checker.CheckResult {
 	return checker.CheckMultipleURLs(urls)
 }
 
-func monitor(urls []string, interval time.Duration, checks int, urlChecker URLChecker, urlMonitor *URLMonitor, alert func(string,URLState)) {
+func monitor(urls []string, interval time.Duration, checks int, urlChecker URLChecker, urlMonitor *URLMonitor, alert func(Alert)) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -67,7 +70,7 @@ func monitor(urls []string, interval time.Duration, checks int, urlChecker URLCh
 
 		for _, result := range results {
 			state := determineState(result)
-			changed := urlMonitor.recordState(result.URL, state)
+			previousState, changed := urlMonitor.recordState(result.URL, state)
 
 			urlMonitor.latencies[result.URL] = result.Duration
 
@@ -81,7 +84,12 @@ func monitor(urls []string, interval time.Duration, checks int, urlChecker URLCh
 			)
 
 			if changed {
-				alert(result.URL, state)
+				alert(Alert{
+					URL: result.URL,
+					Previous: previousState,
+					Current: state,
+					Timestamp: time.Now(),
+				})
 			}
 
 		}
